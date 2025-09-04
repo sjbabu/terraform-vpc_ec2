@@ -92,6 +92,34 @@ resource "aws_security_group_rule" "allow_ssh_egress" {
 
 
 
+
+resource "aws_s3_bucket" "test" {
+  bucket = var.bucket_name
+  acl    = "private"
+  versioning {
+    enabled = true
+  }
+
+  tags = {
+    Name        = "example-bucket"
+    Environment = "dev"
+  }
+}
+
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "test" {
+  bucket = var.bucket_name
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+
+
+
+
 output "vpc_id" {
   value = aws_vpc.prod.id
 }
