@@ -45,7 +45,7 @@ resource "aws_route_table_association" "public_subnet" {
   subnet_id      = aws_subnet.prod_public_subnet.id
 }
 
-
+#add
 
 resource "aws_instance" "web" {
   ami                         = "ami-02d26659fd82cf299" # Change AMI
@@ -53,15 +53,19 @@ resource "aws_instance" "web" {
   associate_public_ip_address = true
   vpc_security_group_ids      = [aws_security_group.web.id]
   subnet_id                   = aws_subnet.prod_public_subnet.id
-
-
+  
 user_data = <<-EOF
               #!/bin/bash
               apt update -y
-              apt install -y nginx
-              systemctl start nginx
-              systemctl enable nginx
-              echo "<h1>Welcome to My Website on EC2!</h1>" > /var/www/html/index.html
+              apt install -y nginx unzip awscli
+
+              # Download artifact from private S3 bucket
+              aws s3 cp s3://${var.bucket_name}/website.zip /tmp/website.zip
+
+              # Extract the website to nginx root directory
+              unzip /tmp/website.zip -d /var/www/html
+
+              systemctl restart nginx
               EOF
 
   tags = {
@@ -129,6 +133,47 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "test" {
   }
 }
 
+resource "aws_iam_policy" "s3_read_policy" {
+  name        = "s3-read-policy"
+  description = "Allow EC2 to read objects from private S3 bucket"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:GetObject"]
+      Resource = ["arn:aws:s3:::${var.bucket_name}/*"]
+    }]
+  })
+}
+
+# IAM Role for EC2
+resource "aws_iam_role" "ec2_role" {
+  name = "ec2-s3-read-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "ec2.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+# Attach Policy to Role
+resource "aws_iam_role_policy_attachment" "attach_s3_policy" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = aws_iam_policy.s3_read_policy.arn
+}
+
+# IAM Instance Profile
+resource "aws_iam_instance_profile" "ec2_instance_profile" {
+  name = "ec2-instance-profile"
+  role = aws_iam_role.ec2_role.name
+}
 
 
 
