@@ -54,6 +54,19 @@ resource "aws_instance" "web" {
   vpc_security_group_ids      = [aws_security_group.web.id]
   subnet_id                   = aws_subnet.prod_public_subnet.id
 
+
+user_data = <<-EOF
+              #!/bin/bash
+              apt update -y
+              apt install -y nginx
+              systemctl start nginx
+              systemctl enable nginx
+              echo "<h1>Welcome to My Website on EC2!</h1>" > /var/www/html/index.html
+              EOF
+
+  tags = {
+    Name = "WebServer"
+  }
 }
 
 
